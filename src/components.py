@@ -135,7 +135,7 @@ class SRGenerator(BaseNet):
         feature2 = self.sr_encoder2(feature1) #size:128, channel:128
         ouput = self.sr_encoder3(feature2) #size:64, channel:256
         
-        ouput = self.sr_middle(output) #size:64, channel:256
+        output = self.sr_middle(output) #size:64, channel:256
 
         feature3 = self.sr_decoder1(output) #size:128, channel:128
         feature4 = self.sr_decoder2(feature3) #size:256, channel:64
