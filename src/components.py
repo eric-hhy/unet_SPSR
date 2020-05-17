@@ -121,7 +121,7 @@ class SRGenerator(BaseNet):
             )
 
         self.sr_decoder3 = nn.Sequential(
-            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 64, out_channels = 32, kernel_size = 4, stride = 2, padding = 1)),
+            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 64, out_channels = 32, kernel_size = 3, stride = 1, padding = 1)),
             nn.InstanceNorm2d(32, track_running_stats = False),
             nn.ReLU(True)
             )
@@ -167,7 +167,7 @@ class SRGenerator(BaseNet):
         grad = torch.cat((grad, feature4), dim=1) #channel:128
         grad_to_sr = self.grad_decoder3(grad) #size:256, channel:32
         print("decode3")
-        print(grad.shape)
+        print(grad_to_sr.shape)
         grad = self.grad_decoder4(grad_to_sr) #size:256, channel:3
         final_grad = torch.sigmoid(grad) #channel = 3
         
