@@ -158,7 +158,7 @@ class SRModel(BaseModel):
         dis_sr_loss = 0
 
         #grad_discriminator loss
-        hr_grads = get_grad(hr_images)
+        hr_grads = self.get_grad(hr_images)
         dis_grad_real = hr_grads
         dis_grad_gen = gen_grads.detach()
         dis_grad_sr = sr_grads.detach()
