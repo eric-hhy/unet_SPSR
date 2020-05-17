@@ -57,7 +57,7 @@ class SRGenerator(BaseNet):
             block = ResnetBlock(256, 2)
             grad_blocks.append(block)
 
-        self.grad_middle = nn.Sequential(*blocks)
+        self.grad_middle = nn.Sequential(*grad_blocks)
 
         self.grad_decoder1 = nn.Sequential(
             nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 256, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
@@ -106,7 +106,7 @@ class SRGenerator(BaseNet):
             block = ResnetBlock(256, 2)
             sr_blocks.append(block)
 
-        self.sr_middle = nn.Sequential(*blocks)
+        self.sr_middle = nn.Sequential(*sr_blocks)
 
         self.sr_decoder1 = nn.Sequential(
             nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 256, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
