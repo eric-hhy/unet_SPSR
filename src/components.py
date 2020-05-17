@@ -138,14 +138,8 @@ class SRGenerator(BaseNet):
         output = self.sr_middle(output) #size:64, channel:256
 
         feature3 = self.sr_decoder1(output) #size:128, channel:128
-        print("srdecode1")
-        print(feature3.shape)
         feature4 = self.sr_decoder2(feature3) #size:256, channel:64
-        print("srdecode2")
-        print(feature4.shape)
         output = self.sr_decoder3(feature4) #size:256, channel:32
-        print("srdecode3")
-        print(output.shape)
 
         grad = self.grad_encoder1(lr_grads) #size:256, channel:64
         ori_grad = grad
@@ -157,17 +151,11 @@ class SRGenerator(BaseNet):
         grad = self.grad_middle(grad) #size:64, channel:256
 
         grad = self.grad_decoder1(grad) #size:128, channel:128
-        print("decode1")
-        print(grad.shape)
         grad = torch.cat((grad, feature3), dim=1) #channel:256
         grad = self.grad_decoder2(grad) #size:256, channel:64
-        print("decode2")
-        print(grad.shape)
         grad = ori_grad + grad
         grad = torch.cat((grad, feature4), dim=1) #channel:128
         grad_to_sr = self.grad_decoder3(grad) #size:256, channel:32
-        print("decode3")
-        print(grad_to_sr.shape)
         grad = self.grad_decoder4(grad_to_sr) #size:256, channel:3
         final_grad = torch.sigmoid(grad) #channel = 3
         

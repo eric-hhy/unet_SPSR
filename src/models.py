@@ -103,6 +103,8 @@ class SRModel(BaseModel):
         self.add_module("style_loss", self.style_loss)
         self.add_module("adversarial_loss", self.adversarial_loss)
 
+        self.add_module("get_grad", self.get_grad)
+
         self.gen_optimizer = optim.Adam(
             params = self.generator.parameters(),
             lr = float(config.LR),
