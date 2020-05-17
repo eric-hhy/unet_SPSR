@@ -5,9 +5,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from .components import SRGenerator, EdgeGenerator, Discriminator
+from .components import SRGenerator, GradDiscriminator, SRDiscriminator
 from .dataset import Dataset
 from .loss import AdversarialLoss, ContentLoss, StyleLoss
+from .util import Get_gradient
 
 
 class BaseModel(nn.Module):
@@ -19,7 +20,8 @@ class BaseModel(nn.Module):
         self.iteration = 0
 
         self.gen_weights_path = os.path.join(config.PATH, name+"_gen.pth")
-        self.dis_weights_path = os.path.join(config.PATH, name+"_dis.pth")
+        self.dis_grad_weights_path = os.path.join(config.PATH, name+"_dis_grad.pth")
+        self.dis_sr_weights_path = os.path.join(config.PATH, name+"_dis_sr.pth")
 
     def load(self):
         if os.path.exists(self.gen_weights_path):
@@ -34,15 +36,25 @@ class BaseModel(nn.Module):
             self.iteration = data["iteration"]
 
         # load discriminator only when training
-        if self.config.MODE == 1 and os.path.exists(self.dis_weights_path):
-            print("loading discriminator...{}".format(self.name))
+        if self.config.MODE == 1 and os.path.exists(self.dis_grad_weights_path):
+            print("loading gradient discriminator...{}".format(self.name))
             
             if torch.cuda.is_available():
-                data = torch.load(self.dis_weights_path)
+                data = torch.load(self.dis_grad_weights_path)
             else:
-                data = torch.load(self.dis_weights_path, map_location = lambda storage, loc:storage)
+                data = torch.load(self.dis_grad_weights_path, map_location = lambda storage, loc:storage)
 
-            self.discriminator.load_state_dict(data["discriminator"])
+            self.grad_discriminator.load_state_dict(data["graddiscriminator"])
+
+        if self.config.MODE == 1 and os.path.exists(self.dis_sr_weights_path):
+            print("loading sr discriminator...{}".format(self.name))
+            
+            if torch.cuda.is_available():
+                data = torch.load(self.dis_sr_weights_path)
+            else:
+                data = torch.load(self.dis_sr_weights_path, map_location = lambda storage, loc:storage)
+
+            self.sr_discriminator.load_state_dict(data["srdiscriminator"])
 
     def save(self):
         print("Saving...{}...".format(self.name))
@@ -53,100 +65,12 @@ class BaseModel(nn.Module):
             }, self.gen_weights_path)
 
         torch.save({
-            "discriminator": self.discriminator.state_dict()
-            }, self.dis_weights_path)
+            "graddiscriminator": self.grad_discriminator.state_dict()
+            }, self.dis_grad_weights_path)
 
-class EdgeModel(BaseModel):
-    def __init__(self, config):
-        super().__init__("EdgeModel", config)
-
-        self.config = config
-        # generator input: [rgb(3) + edge(1)]
-        # discriminator input: (rgb(3) + edge(1))
-        self.generator = EdgeGenerator()
-        self.discriminator = Discriminator(in_channels = 4, use_sigmoid = config.GAN_LOSS != "hinge")
-
-        if len(config.GPU) > 1:
-            self.generator = nn.DataParallel(self.generator, config.GPU)
-            self.discriminator = nn.DataParallel(self.discriminator, config.GPU)
-
-        self.L1_loss = nn.L1Loss()
-        self.adversarial_loss = AdversarialLoss(type = config.GAN_LOSS)
-
-        self.add_module('generator', self.generator)
-        self.add_module('discriminator', self.discriminator)
-
-        self.add_module("L1_loss", self.L1_loss)
-        self.add_module("adversarial_loss", self.adversarial_loss)
-
-        self.gen_optimizer = optim.Adam(
-            params = self.generator.parameters(),
-            lr = float(config.LR),
-            betas = (config.BETA1, config.BETA2)
-            )
-
-        self.dis_optimizer = optim.Adam(
-            params = self.discriminator.parameters(),
-            lr = float(config.LR),
-            betas = (config.BETA1, config.BETA2)
-            )
-
-    def forward(self, lr_images, lr_edges):
-        hr_images = F.interpolate(lr_images, scale_factor = self.config.SCALE)
-        hr_edges = F.interpolate(lr_edges, scale_factor = self.config.SCALE)
-        inputs = torch.cat((hr_images, hr_edges), dim = 1)
-        outputs = self.generator.forward(inputs)
-        return outputs
-    
-    def backward(self, gen_loss, dis_loss):
-        dis_loss.backward()
-        self.dis_optimizer.step()
-
-        gen_loss.backward()
-        self.gen_optimizer.step()
-
-    def process(self, lr_images, hr_images, lr_edges, hr_edges):
-        self.iteration += 1
-
-        #zero optimizers
-        self.gen_optimizer.zero_grad()
-        self.dis_optimizer.zero_grad()
-
-        #process outputs
-        outputs = self.forward(lr_images, lr_edges)
-        gen_loss = 0
-        dis_loss = 0
-
-        #discriminator loss
-        dis_input_real = torch.cat((hr_images, hr_edges), dim=1)
-        dis_input_fake = torch.cat((hr_images, outputs.detach()), dim=1)
-        dis_real, dis_real_feat = self.discriminator.forward(dis_input_real)        # in: (rgb(3) + edge(1))
-        dis_fake, dis_fake_feat = self.discriminator.forward(dis_input_fake)        # in: (rgb(3) + edge(1))
-        dis_real_loss = self.adversarial_loss(dis_real, True, True)
-        dis_fake_loss = self.adversarial_loss(dis_fake, False, True)
-        dis_loss += (dis_real_loss + dis_fake_loss) / 2
-
-        # generator adversarial loss
-        gen_input_fake = torch.cat((hr_images, outputs), dim=1)
-        gen_fake, gen_fake_feat = self.discriminator.forward(gen_input_fake)        # in: (rgb(3) + edge(1))
-        gen_gan_loss = self.adversarial_loss(gen_fake, True, False) * self.config.ADV_LOSS_WEIGHT1
-        gen_loss += gen_gan_loss
-
-        # generator feature matching loss
-        gen_fm_loss = 0 
-        for i in range(len(dis_real_feat)):
-            gen_fm_loss += self.L1_loss(gen_fake_feat[i], dis_real_feat[i].detach())
-        gen_fm_loss = gen_fm_loss * self.config.FM_LOSS_WEIGHT
-        gen_loss += gen_fm_loss
-
-        # create logs
-        logs = [
-            ("l_dis", dis_loss.item()),
-            ("l_gen", gen_gan_loss.item()),
-            ("l_fm", gen_fm_loss.item()),
-        ]
-
-        return outputs, gen_loss, dis_loss, logs
+        torch.save({
+            "srdiscriminator": self.sr_discriminator.state_dict()
+            }, self.dis_sr_weights_path)
 
 class SRModel(BaseModel):
     def __init__(self, config):
@@ -156,26 +80,23 @@ class SRModel(BaseModel):
         # generator input: [rgb(3) + edge(1)]
         # discriminator input: (rgb(3) 
         self.generator = SRGenerator()
-        self.discriminator = Discriminator(in_channels = 3, use_sigmoid = config.GAN_LOSS != "hinge")
+        self.grad_discriminator = GradDiscriminator(in_channels = 3, use_sigmoid = config.GAN_LOSS != "hinge")
+        self.sr_discriminator = SRDiscriminator(in_channels = 3, use_sigmoid = config.GAN_LOSS != "hinge")
 
         if len(config.GPU) > 1:
             self.generator = nn.DataParallel(self.generator, config.GPU)
-            self.discriminator = nn.DataParallel(self.discriminator, config.GPU)
+            self.grad_discriminator = nn.DataParallel(self.grad_discriminator, config.GPU)
+            self.sr_discriminator = nn.DataParallel(self.sr_discriminator, config.GPU)
 
         self.L1_loss = nn.L1Loss()
         self.content_loss = ContentLoss()
         self.style_loss = StyleLoss()
         self.adversarial_loss = AdversarialLoss(type = config.GAN_LOSS)
-
-        kernel = np.zeros((self.config.SCALE, self.config.SCALE))
-        kernel[0,0] = 1
-        kernel_weight = torch.tensor(np.tile(kernel, (3, 1, 1, 1))).float()
-
-        #self.scale_kernel = kernel_weight
-        self.register_buffer('scale_kernel', kernel_weight)
+        self.get_grad = Get_gradient()
 
         self.add_module('generator', self.generator)
-        self.add_module('discriminator', self.discriminator)
+        self.add_module('grad_discriminator', self.grad_discriminator)
+        self.add_mocule('sr_discriminator', self.sr_discriminator)
 
         self.add_module("L1_loss", self.L1_loss)
         self.add_module("content_loss", self.content_loss)
@@ -188,78 +109,111 @@ class SRModel(BaseModel):
             betas = (config.BETA1, config.BETA2)
             )
 
-        self.dis_optimizer = optim.Adam(
-            params = self.discriminator.parameters(),
+        self.dis_grad_optimizer = optim.Adam(
+            params = self.grad_discriminator.parameters(),
             lr = float(config.LR),
             betas = (config.BETA1, config.BETA2)
             )
 
-    def forward(self, lr_images, hr_edges):
-        hr_images = F.conv_transpose2d(lr_images, self.scale_kernel, padding=0, stride=4, groups=3)
-        inputs = torch.cat((hr_images, hr_edges), dim=1)
-        outputs = self.generator.forward(inputs)
-        return outputs
+        self.dis_sr_optimizer = optim.Adam(
+            params = self.sr_discriminator.parameters(),
+            lr = float(config.LR),
+            betas = (config.BETA1, config.BETA2)
+            )
 
-    def backward(self, gen_loss, dis_loss):
-        dis_loss.backward()
-        self.dis_optimizer.step()
+    def forward(self, lr_images):
+        interp_hr_images = F.interpolate(lr_images, scale_factor = self.config.SCALE)
+        lr_grads = self.get_grad(lr_images)
+        interp_hr_grads = F.interpolate(lr_grads, scale_factor = self.config.SCALE)
+
+        outputs, gen_grads = self.generator.forward(interp_hr_images, interp_hr_grads)
+        sr_grads = self.get_grad(outputs)
+        
+        return outputs, sr_grads, gen_grads
+
+    def backward(self, gen_loss, dis_grad_loss, dis_sr_loss):
+        dis_grad_loss.backward()
+        self.dis_grad_optimizer.step()
+
+        dis_sr_loss.backward()
+        self.dis_sr_optimizer.step()
 
         gen_loss.backward()
         self.gen_optimizer.step()
 
-    def process(self, lr_images, hr_images, lr_edges, hr_edges):
+    def process(self, lr_images, hr_images):
         self.iteration += 1
 
         # zero optimizers
         self.gen_optimizer.zero_grad()
-        self.dis_optimizer.zero_grad()
+        self.dis_grad_optimizer.zero_grad()
+        self.dis_sr_optimizer.zero_grad()
 
         # process outputs
-        outputs = self.forward(lr_images, hr_edges)
+        outputs, sr_grads, gen_grads = self.forward(lr_images)
         gen_loss = 0
-        dis_loss = 0
+        dis_grad_loss = 0
+        dis_sr_loss = 0
 
-        #discriminator loss
-        dis_input_real = hr_images
-        dis_input_fake = outputs.detach()
-        dis_real, _ = self.discriminator.forward(dis_input_real)                    # in: [rgb(3)]
-        dis_fake, _ = self.discriminator.forward(dis_input_fake)                    # in: [rgb(3)]
-        dis_real_loss = self.adversarial_loss(dis_real, True, True)
-        dis_fake_loss = self.adversarial_loss(dis_fake, False, True)
-        dis_loss += (dis_real_loss + dis_fake_loss) / 2
+        #grad_discriminator loss
+        hr_grads = get_grad(hr_images)
+        dis_grad_real = hr_grads
+        dis_grad_gen = gen_grads.detach()
+        dis_grad_sr = sr_grads.detach()
+
+        dis_grad_real_outputs = self.grad_discriminator.forward(dis_grad_real)                    
+        dis_grad_sr_outputs = self.grad_discriminator.forward(dis_grad_sr)
+
+        dis_real_grad_loss = self.adversarial_loss(dis_grad_real_outputs, True, True)
+        dis_fake_grad_loss = self.adversarial_loss(dis_grad_sr_outputs, False, True)
+        dis_grad_loss = dis_real_grad_loss + dis_fake_grad_loss
+
+        #sr_discriminator loss
+        dis_sr_real = hr_images
+        dis_sr_gen = outputs.detach()
+
+        dis_sr_real_outputs = self.sr_discriminator.forward(dis_sr_real)
+        dis_sr_gen_outputs = self.sr_discriminator.forward(dis_sr_gen)
+
+        dis_real_sr_loss = self.adversarial_loss(dis_sr_real_outputs, True, True)
+        dis_fake_sr_loss = self.adversarial_loss(dis_sr_gen_outputs, False, True)
+        dis_sr_loss = dis_real_sr_loss + dis_fake_sr_loss
+
 
 
         # generator adversarial loss
-        gen_input_fake = outputs
-        gen_fake, _ = self.discriminator.forward(gen_input_fake)                    # in: [rgb(3)]
-        gen_gan_loss = self.adversarial_loss(gen_fake, True, False) * self.config.ADV_LOSS_WEIGHT2
-        gen_loss += gen_gan_loss
-
+        grad_sr_adv_loss = self.adversarial_loss(dis_grad_sr_outputs, True, False)*self.config.GRAD_SR_ADV_LOSS_WEIGHT
+        sr_adv_loss = self.adversarial_loss(dis_sr_gen_outputs, True, False)*self.config.SR_ADV_LOSS_WEIGHT
+        gen_adv_loss = grad_sr_adv_loss + sr_adv_loss
+        gen_loss = gen_loss + gen_adv_loss
 
         # generator L1 loss
-        gen_l1_loss = self.L1_loss(outputs, hr_images) * self.config.L1_LOSS_WEIGHT
-        gen_loss += gen_l1_loss
+        L1_grad_gen_pix_loss = self.L1_loss(dis_grad_real, dis_grad_gen)*self.config.L1_GRAD_GEN_PIX_LOSS_WEIGHT
+        L1_grad_sr_pix_loss = self.L1_loss(dis_grad_real, dis_grad_sr)*self.config.L1_GRAD_SR_PIX_LOSS_WEIGHT
+        L1_sr_pix_loss = self.L1_loss(hr_images, dis_sr_gen)*self.config.L1_SR_PIX_LOSS_WEIGHT
+        gen_L1_loss = L1_grad_gen_pix_loss + L1_grad_sr_pix_loss + L1_sr_pix_loss
+        gen_loss = gen_loss + gen_L1_loss
 
 
         # generator content loss
         gen_content_loss = self.content_loss(outputs, hr_images)
         gen_content_loss = gen_content_loss * self.config.CONTENT_LOSS_WEIGHT
-        gen_loss += gen_content_loss
-
 
         # generator style loss
         gen_style_loss = self.style_loss(outputs, hr_images)
         gen_style_loss = gen_style_loss * self.config.STYLE_LOSS_WEIGHT
-        gen_loss += gen_style_loss
 
+        gen_perceptual_loss = gen_content_loss + gen_style_loss
+
+        gen_loss = gen_loss + gen_perceptual_loss
 
         # create logs
         logs = [
-            ("l_dis", dis_loss.item()),
-            ("l_gen", gen_gan_loss.item()),
-            ("l_l1", gen_l1_loss.item()),
-            ("l_content", gen_content_loss.item()),
-            ("l_style", gen_style_loss.item()),
+            ("l_dis_grad", dis_grad_loss.item()),
+            ("l_dis_sr", dis_sr_loss.item()),
+            ("l_gen_adv", gen_adv_loss.item()),
+            ("l_gen_l1", gen_L1_loss.item()),
+            ("l_gen_perceptual", gen_perceptual_loss.item())
             ]
 
-        return outputs, gen_loss, dis_loss, logs
+        return outputs, gen_loss, dis_grad_loss, dis_sr_loss, logs

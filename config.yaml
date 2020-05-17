@@ -7,7 +7,7 @@ DEBUG: 0            # turns on debugging mode
 VERBOSE: 0          # turns on verbose mode in the output console
 
 LIST_FOLDER: ./list_folder
-CROP_SIZE: 512
+CROP_SIZE: 256
 
 TRAIN_FLIST_LR: ./datasets/places2_train.flist
 TRAIN_FLIST_HR: ./datasets/places2_train.flist
@@ -28,11 +28,18 @@ EDGE_THRESHOLD: 0.5           # edge detection threshold
 
 L1_LOSS_WEIGHT: 1             # l1 loss weight
 FM_LOSS_WEIGHT: 10            # feature-matching loss weight
-STYLE_LOSS_WEIGHT: 250        # style loss weight
-CONTENT_LOSS_WEIGHT: 0.1      # content loss weight
+STYLE_LOSS_WEIGHT: 1        # style loss weight
+CONTENT_LOSS_WEIGHT: 1      # content loss weight
 ADV_LOSS_WEIGHT1: 1           # edge model adversarial loss weight
 ADV_LOSS_WEIGHT2: 1           # SR model adversarial loss weight
 GAN_LOSS: hinge               # nsgan | lsgan | hinge
+
+L1_GRAD_GEN_PIX_LOSS_WEIGHT: 0.5
+L1_GRAD_SR_PIX_LOSS_WEIGHT: 0.01
+L1_SR_PIX_LOSS_WEIGHT:0.01
+GRAD_SR_ADV_LOSS_WEIGHT: 0.005
+SR_ADV_LOSS_WEIGHT: 0.005
+
 
 SAVE_INTERVAL: 1000           # how many iterations to wait before saving model (0: never)
 SAMPLE_INTERVAL: 1000         # how many iterations to wait before sampling (0: never)

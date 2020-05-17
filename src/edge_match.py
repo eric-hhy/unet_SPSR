@@ -6,27 +6,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from .dataset import Dataset
-from .models import EdgeModel, SRModel
+from .models import SRModel
 from .metrics import PSNR, EdgeAccuracy
 from .utils import Progbar, create_dir, stitch_images, imsave
 
 class EdgeMatch():
     def __init__(self, config):
         self.config = config
-        
-        if config.MODEL == 1:
-            self.model_name = "edge"
-        elif config.MODEL == 2:
-            self.model_name = "SR"
-        elif config.MODEL == 3:
-            self.model_name = "joint"
+
+        self.model_name = "spsr"
 
         self.debug = False
-        self.edge_model = EdgeModel(config).to(config.DEVICE)
         self.sr_model = SRModel(config).to(config.DEVICE)
 
         self.psnr = PSNR(255.0).to(config.DEVICE)
-        self.edgeacc = EdgeAccuracy(config.EDGE_THRESHOLD).to(config.DEVICE)
 
         self.train_dataset = Dataset(list_folder = config.LIST_FOLDER, 
                                      mode = "train", 
@@ -61,26 +54,10 @@ class EdgeMatch():
         self.log_file = os.path.join(config.PATH, 'log_' + self.model_name + '.dat')
     
     def load(self):
-        if self.config.MODEL == 1:
-            self.edge_model.load()
-
-        elif self.config.MODEL == 2:
-            self.sr_model.load()
-
-        else:
-            self.edge_model.load()
-            self.sr_model.load()
+        self.sr_model.load()
 
     def save(self):
-        if self.config.MODEL == 1:
-            self.edge_model.save()
-
-        elif self.config.MODEL == 2:
-            self.sr_model.save()
-
-        else:
-            self.edge_model.save()
-            self.sr_model.save()
+        self.sr_model.save()
 
     def train(self):
         train_loader = DataLoader(
@@ -108,41 +85,22 @@ class EdgeMatch():
             progbar = Progbar(total, width=20, stateful_metrics=['epoch', 'iter'])
 
             for items in train_loader:
-                self.edge_model.train()
                 self.sr_model.train()
 
-                lr_images, hr_images, lr_edges, hr_edges = self.cuda(*items)
+                lr_images, hr_images = self.cuda(*items)
 
-                # edge model
-                if model == 1:
-                    # train
-                    hr_edges_pred, gen_loss, dis_loss, logs = self.edge_model.process(lr_images, hr_images, lr_edges, hr_edges)
+                # sr model
+                hr_images_pred, gen_loss, dis_grad_loss, dis_sr_loss, logs = self.sr_model.process(lr_images, hr_images)
 
-                    # metrics
-                    precision, recall = self.edgeacc(hr_edges, hr_edges_pred)
-                    logs.append(('precision', precision.item()))
-                    logs.append(('recall', recall.item()))
+                # metrics
+                psnr = self.psnr(self.postprocess(hr_images), self.postprocess(hr_images_pred))
+                mae = (torch.sum(torch.abs(hr_images - hr_images_pred)) / torch.sum(hr_images)).float()
+                logs.append(('psnr', psnr.item()))
+                logs.append(('mae', mae.item()))
 
-                    # backward
-                    self.edge_model.backward(gen_loss, dis_loss)
-                    iteration = self.edge_model.iteration
-
-
-                # sr model / joint model
-                else:
-                    # train
-                    hr_edges_pred = self.scale(lr_edges) if model == 2 else self.edge_model.forward(lr_images, lr_edges).detach()
-                    hr_images_pred, gen_loss, dis_loss, logs = self.sr_model.process(lr_images, hr_images, lr_edges, hr_edges_pred)
-
-                    # metrics
-                    psnr = self.psnr(self.postprocess(hr_images), self.postprocess(hr_images_pred))
-                    mae = (torch.sum(torch.abs(hr_images - hr_images_pred)) / torch.sum(hr_images)).float()
-                    logs.append(('psnr', psnr.item()))
-                    logs.append(('mae', mae.item()))
-
-                    # backward
-                    self.sr_model.backward(gen_loss, dis_loss)
-                    iteration = self.sr_model.iteration
+                # backward
+                self.sr_model.backward(gen_loss, dis_grad_loss, dis_sr_loss)
+                iteration = self.sr_model.iteration
 
                 if iteration > max_iteration:
                     keep_training = False
@@ -185,7 +143,6 @@ class EdgeMatch():
         model = self.config.MODEL
         total = len(self.val_dataset)
 
-        self.edge_model.eval()
         self.sr_model.eval()
 
         progbar = Progbar(total, width=20, stateful_metrics=['iter'])
@@ -193,35 +150,20 @@ class EdgeMatch():
 
         for items in val_loader:
             iteration += 1
-            lr_images, hr_images, lr_edges, hr_edges = self.cuda(*items)
+            lr_images, hr_images = self.cuda(*items)
 
-            # edge model
-            if model == 1:
-                # eval
-                hr_edges_pred, gen_loss, dis_loss, logs = self.edge_model.process(lr_images, hr_images, lr_edges, hr_edges)
+            hr_images_pred, gen_loss, dis_grad_loss, dis_sr_loss, logs = self.sr_model.process(lr_images, hr_images)
 
-                # metrics
-                precision, recall = self.edgeacc(hr_edges, hr_edges_pred)
-                logs.append(('precision', precision.item()))
-                logs.append(('recall', recall.item()))
-
-
-            # sr model / joint model
-            else:
-                hr_edges_pred = self.scale(lr_edges) if model == 2 else self.edge_model.forward(lr_images, lr_edges).detach()
-                hr_images_pred, gen_loss, dis_loss, logs = self.sr_model.process(lr_images, hr_images, lr_edges, hr_edges_pred)
-
-                # metrics
-                psnr = self.psnr(self.postprocess(hr_images), self.postprocess(hr_images_pred))
-                mae = (torch.sum(torch.abs(hr_images - hr_images_pred)) / torch.sum(hr_images)).float()
-                logs.append(('psnr', psnr.item()))
-                logs.append(('mae', mae.item()))
+            # metrics
+            psnr = self.psnr(self.postprocess(hr_images), self.postprocess(hr_images_pred))
+            mae = (torch.sum(torch.abs(hr_images - hr_images_pred)) / torch.sum(hr_images)).float()
+            logs.append(('psnr', psnr.item()))
+            logs.append(('mae', mae.item()))
 
             logs = [("iter", iteration), ] + logs
             progbar.add(len(hr_images), values=logs)
 
     def test(self):
-        self.edge_model.eval()
         self.sr_model.eval()
 
         model = self.config.MODEL
@@ -235,17 +177,10 @@ class EdgeMatch():
         index = 0
         for items in test_loader:
             name = self.test_dataset.load_name(index)
-            lr_images, hr_images, lr_edges, hr_edges = self.cuda(*items)
+            lr_images, hr_images = self.cuda(*items)
             index += 1
 
-            # edge model
-            if model == 1:
-                outputs = self.edge_model.forward(lr_images, lr_edges)
-
-            # sr model / joint model
-            else:
-                hr_edges_pred = self.scale(lr_edges) if model == 2 else self.edge_model.forward(lr_images, lr_edges).detach()
-                outputs = self.sr_model(lr_images, hr_edges_pred)
+            outputs, sr_grads, gen_grads = self.sr_model.forward(lr_images)
 
             output = self.postprocess(outputs)[0]
             path = os.path.join(self.results_path, name)
@@ -259,23 +194,14 @@ class EdgeMatch():
         if len(self.val_dataset) == 0:
             return
 
-        self.edge_model.eval()
         self.sr_model.eval()
 
         model = self.config.MODEL
         items = next(self.val_dataset.create_iterator(self.config.SAMPLE_SIZE))
-        lr_images, hr_images, lr_edges, hr_edges = self.cuda(*items)
+        lr_images, hr_images = self.cuda(*items)
 
-        # edge model
-        if model == 1:
-            iteration = self.edge_model.iteration
-            outputs = self.edge_model.forward(lr_images, lr_edges)
-
-        # sr model / joint model
-        else:
-            iteration = self.sr_model.iteration
-            hr_edges = self.scale(lr_edges) if model == 2 else self.edge_model.forward(lr_images, lr_edges).detach()
-            outputs = self.sr_model(lr_images, hr_edges)
+        iteration = self.sr_model.iteration
+        outputs, sr_grads, gen_grads = self.sr_model.forward(lr_images)
 
         image_per_row = 2
         if self.config.SAMPLE_SIZE <= 6:
@@ -284,7 +210,8 @@ class EdgeMatch():
         images = stitch_images(
             self.postprocess(self.scale(lr_images)),
             self.postprocess(hr_images),
-            self.postprocess(hr_edges),
+            self.postprocess(gen_grads),
+            self.postprocess(sr_grads),
             self.postprocess(outputs),
             img_per_row=image_per_row
         )

@@ -29,103 +29,143 @@ class BaseNet(nn.Module):
 
         self.apply(init_func)
 
-class EdgeGenerator(BaseNet):
-    def __init__(self, scale = 4, residual_blocks = 8):
-        super().__init__()
-
-        self.encoder = nn.Sequential(
-            nn.ReflectionPad2d(3),
-            nn.utils.spectral_norm(nn.Conv2d(in_channels = 4, out_channels = 64, kernel_size = 7, padding = 0)),
-            nn.InstanceNorm2d(64, track_running_stats = False),
-            nn.ReLU(True),
-
-            nn.utils.spectral_norm(nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
-            nn.InstanceNorm2d(128, track_running_stats = False),
-            nn.ReLU(True),
-
-            nn.utils.spectral_norm(nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 1)),
-            nn.InstanceNorm2d(256, track_running_stats = False),
-            nn.ReLU(True)
-            )
-
-        blocks = []
-        for _ in range(residual_blocks):
-            block = ResnetBlock(256, 2)
-            blocks.append(block)
-
-        self.middle = nn.Sequential(*blocks)
-
-        self.decoder = nn.Sequential(
-            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 256, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
-            nn.InstanceNorm2d(128, track_running_stats = False),
-            nn.ReLU(True),
-
-            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 128, out_channels = 64, kernel_size = 4, stride = 2, padding = 1)),
-            nn.InstanceNorm2d(64, track_running_stats = False),
-            nn.ReLU(True),
-
-            nn.ReflectionPad2d(3),
-            nn.Conv2d(in_channels = 64, out_channels = 1, kernel_size = 7, padding = 0)
-            )
-
-        self.init_weights()
-    
-    def forward(self, input):
-        output = self.encoder(input)
-        output = self.middle(output)
-        output = self.decoder(output)
-        output = torch.sigmoid(output)
-        return output
-
 class SRGenerator(BaseNet):
     def __init__(self, scale = 4, residual_blocks = 8):
         super().__init__()
 
-        self.encoder = nn.Sequential(
+        self.grad_encoder1 = nn.Sequential(
             nn.ReflectionPad2d(3),
-            nn.Conv2d(in_channels = 4, out_channels = 64, kernel_size = 7, padding = 0),
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 7, padding = 0)),
             nn.InstanceNorm2d(64, track_running_stats = False),
-            nn.ReLU(True),
+            nn.ReLU(True)
+            )
 
+        self.grad_encoder2 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
+            nn.InstanceNorm2d(128, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        self.grad_encoder3 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = 4, stride = 2, padding = 1)),
+            nn.InstanceNorm2d(256, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        grad_blocks = []
+        for _ in range(residual_blocks):
+            block = ResnetBlock(256, 2)
+            grad_blocks.append(block)
+
+        self.grad_middle = nn.Sequential(*blocks)
+
+        self.grad_decoder1 = nn.Sequential(
+            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 256, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
+            nn.InstanceNorm2d(128, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        self.grad_decoder2 = nn.Sequential(
+            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 256, out_channels = 64, kernel_size = 4, stride = 2, padding = 1)),
+            nn.InstanceNorm2d(64, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        self.grad_decoder3 = nn.Sequential(
+            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 128, out_channels = 32, kernel_size = 3, stride = 1, padding = 1)),
+            nn.InstanceNorm2d(32, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        self.grad_decoder4 = nn.Conv2d(in_channels = 32, out_channels = 3, kernel_size = 1, padding = 0)
+            
+
+        #==========================================
+
+        self.sr_encoder1 = nn.Sequential(
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 7, padding = 0),
+            nn.InstanceNorm2d(64, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        self.sr_encoder2 = nn.Sequential(
             nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 1),
             nn.InstanceNorm2d(128, track_running_stats = False),
-            nn.ReLU(True),
+            nn.ReLU(True)
+            )
 
+        self.sr_encoder3 = nn.Sequential(
             nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 1),
             nn.InstanceNorm2d(256, track_running_stats = False),
             nn.ReLU(True)
             )
 
-        blocks = []
+        sr_blocks = []
         for _ in range(residual_blocks):
             block = ResnetBlock(256, 2)
-            blocks.append(block)
+            sr_blocks.append(block)
 
-        self.middle = nn.Sequential(*blocks)
+        self.sr_middle = nn.Sequential(*blocks)
 
-        self.decoder = nn.Sequential(
+        self.sr_decoder1 = nn.Sequential(
             nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 256, out_channels = 128, kernel_size = 4, stride = 2, padding = 1)),
             nn.InstanceNorm2d(128, track_running_stats = False),
-            nn.ReLU(True),
+            nn.ReLU(True)
+            )
 
+        self.sr_decoder2 = nn.Sequential(
             nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 128, out_channels = 64, kernel_size = 4, stride = 2, padding = 1)),
             nn.InstanceNorm2d(64, track_running_stats = False),
-            nn.ReLU(True),
-
-            nn.ReflectionPad2d(3),
-            nn.Conv2d(in_channels = 64, out_channels = 3, kernel_size = 7, padding = 0)
+            nn.ReLU(True)
             )
+
+        self.sr_decoder3 = nn.Sequential(
+            nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels = 64, out_channels = 32, kernel_size = 4, stride = 2, padding = 1)),
+            nn.InstanceNorm2d(32, track_running_stats = False),
+            nn.ReLU(True)
+            )
+
+        self.sr_decoder4 = nn.Conv2d(in_channels = 64, out_channels = 3, kernel_size = 3, padding = 1)
 
         self.init_weights()
     
-    def forward(self, input):
-        output = self.encoder(input)
-        output = self.middle(output)
-        output = self.decoder(output)
-        output = torch.sigmoid(output)
-        return output
+    def forward(self, lr_images, lr_grads):
+        feature1 = self.sr_encoder1(lr_images) #size:256, channel:64
+        feature2 = self.sr_encoder2(feature1) #size:128, channel:128
+        ouput = self.sr_encoder3(feature2) #size:64, channel:256
+        
+        ouput = self.sr_middle(output) #size:64, channel:256
 
-class Discriminator(BaseNet):
+        feature3 = self.sr_decoder1(output) #size:128, channel:128
+        feature4 = self.sr_decoder2(feature3) #size:256, channel:64
+        output = self.sr_decoder3(feature4) #size:256, channel:32
+
+        grad = self.grad_encoder1(lr_grads) #size:256, channel:64
+        ori_grad = grad
+        grad = torch.cat((grad, feature1), dim=1) #channel:128
+        grad = self.grad_encoder2(grad) #size:128, channel:128
+        grad = torch.cat((grad, feature2), dim=1) #channel:256
+        grad = self.grad_encoder3(grad) #size:64, channel:256
+
+        grad = self.grad_middle(grad) #size:64, channel:256
+
+        grad = self.grad_decoder1(grad) #size:128, channel:128
+        grad = torch.cat((grad, feature3), dim=1) #channel:256
+        grad = self.grad_decoder2(grad) #size:256, channel:64
+        grad = ori_grad + grad
+        grad = torch.cat((grad, feature4), dim=1) #channel:128
+        grad_to_sr = self.grad_decoder3(grad) #size:256, channel:32
+        grad = self.grad_decoder4(grad_to_sr) #size:256, channel:3
+        final_grad = torch.sigmoid(grad) #channel = 3
+        
+        output = torch.cat((output, grad_to_sr), dim=1) #channel = 64
+        output = self.sr_decoder4(output) #channel = 3
+        output = torch.sigmoid(output)
+        
+        return output, final_grad
+
+class GradDiscriminator(BaseNet):
     def __init__(self, in_channels, use_sigmoid = True):
         super().__init__()
 
@@ -168,8 +208,52 @@ class Discriminator(BaseNet):
         if self.use_sigmoid:
             output = nn.sigmoid(conv5)
 
-        return output, [conv1, conv2, conv3, conv4, conv5]
+        return output
 
+class SRDiscriminator(BaseNet):
+    def __init__(self, in_channels, use_sigmoid = True):
+        super().__init__()
+
+        self.use_sigmoid = use_sigmoid
+
+        self.conv1 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = in_channels, out_channels = 64, kernel_size = 4, stride = 2, padding = 1, bias = False)),
+            nn.LeakyReLU(0.2, True)
+            )
+
+        self.conv2 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 1, bias = False)),
+            nn.LeakyReLU(0.2, True)
+            )
+
+        self.conv3 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 1, bias = False)),
+            nn.LeakyReLU(0.2, True)
+            )
+
+        self.conv4 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 4, stride = 1, padding = 1, bias = False)),
+            )
+
+        self.conv5 = nn.Sequential(
+            nn.utils.spectral_norm(nn.Conv2d(in_channels = 512, out_channels = 1, kernel_size = 4, stride = 2, padding = 1, bias = False)),
+            nn.LeakyReLU(0.2, True)
+            )
+
+        self.init_weights()
+
+    def forward(self, input):
+        conv1 = self.conv1(input)
+        conv2 = self.conv2(conv1)
+        conv3 = self.conv3(conv2)
+        conv4 = self.conv4(conv3)
+        conv5 = self.conv5(conv4)
+
+        output = conv5
+        if self.use_sigmoid:
+            output = nn.sigmoid(conv5)
+
+        return output
 
 class ResnetBlock(nn.Module):
     def __init__(self, dim, dilation = 1):

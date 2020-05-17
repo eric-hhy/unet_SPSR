@@ -16,7 +16,7 @@ def load_config(mode = None):
     parser.add_argument("--test_img_path", type = str, default = "./test_images")
     parser.add_argument("--eval_img_path", type = str, default = "./eval_images")
 
-    if mode == "test":
+    if mode == 2:
         #parser.add_argument("--input", type = str, help = "path to a test image")
         parser.add_argument("--output", type = str, help = "path to a output folder")
 
@@ -37,25 +37,14 @@ def load_config(mode = None):
     #train mode
     if mode == 1:
         config.MODE = 1
-        if args.model:
-            config.MODEL = args.model
     
     #test mode
     elif mode == 2:
         config.MODE = 2
-        config.HR_SIZE = 0
-        if args.model:
-            config.MODEL = args.model
-        else:
-            config.MODEL = 3
     
     #eval mode
     elif mode == 3:
         config.MODE = 3
-        if args.model:
-            config.MODEL = args.model
-        else:
-            config.MODEL = 3
 
     return config
 
@@ -86,7 +75,7 @@ def main(mode = None):
     # model training
     if config.MODE == 1:
         config.print()
-        print("Start training...model " + str(config.MODEL))
+        print("Start training...")
         model.train()
 
     # model test

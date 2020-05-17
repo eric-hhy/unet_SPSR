@@ -46,16 +46,10 @@ class Dataset(torch.utils.data.Dataset):
         
         lr_img, hr_img = self.prepare_img(ori_img)
 
-        lr_edge = self.load_edge(np.array(lr_img))
-        hr_edge = self.load_edge(np.array(hr_img))
-
         lr_img_tensor = F.to_tensor(lr_img).float()
         hr_img_tensor = F.to_tensor(hr_img).float()
 
-        lr_edge_tensor = F.to_tensor(lr_edge).float()
-        hr_edge_tensor = F.to_tensor(hr_edge).float()
-
-        return lr_img_tensor, hr_img_tensor, lr_edge_tensor, hr_edge_tensor
+        return lr_img_tensor, hr_img_tensor
 
     def __len__(self):
         """
@@ -64,8 +58,8 @@ class Dataset(torch.utils.data.Dataset):
         return len(self.ori_imgs)
 
 
-    def load_edge(self, img):
-        return canny(rgb2gray(img), sigma=self.sigma).astype(np.float)
+    #def load_edge(self, img):
+        #return canny(rgb2gray(img), sigma=self.sigma).astype(np.float)
 
     def create_iterator(self, batch_size):
         while True:
