@@ -34,11 +34,11 @@ ADV_LOSS_WEIGHT1: 1           # edge model adversarial loss weight
 ADV_LOSS_WEIGHT2: 1           # SR model adversarial loss weight
 GAN_LOSS: hinge               # nsgan | lsgan | hinge
 
-L1_GRAD_GEN_PIX_LOSS_WEIGHT: 0.5
-L1_GRAD_SR_PIX_LOSS_WEIGHT: 0.01
-L1_SR_PIX_LOSS_WEIGHT:0.01
-GRAD_SR_ADV_LOSS_WEIGHT: 0.005
-SR_ADV_LOSS_WEIGHT: 0.005
+L1_GRAD_GEN_PIX_LOSS_WEIGHT: 0.5 #
+L1_GRAD_SR_PIX_LOSS_WEIGHT: 0.01 #
+L1_SR_PIX_LOSS_WEIGHT:0.01       #
+GRAD_SR_ADV_LOSS_WEIGHT: 0.005    #
+SR_ADV_LOSS_WEIGHT: 0.005       #
 
 
 SAVE_INTERVAL: 1000           # how many iterations to wait before saving model (0: never)
