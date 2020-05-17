@@ -96,7 +96,7 @@ class SRModel(BaseModel):
 
         self.add_module('generator', self.generator)
         self.add_module('grad_discriminator', self.grad_discriminator)
-        self.add_mocule('sr_discriminator', self.sr_discriminator)
+        self.add_module('sr_discriminator', self.sr_discriminator)
 
         self.add_module("L1_loss", self.L1_loss)
         self.add_module("content_loss", self.content_loss)
