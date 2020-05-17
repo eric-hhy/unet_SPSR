@@ -158,7 +158,7 @@ class SRModel(BaseModel):
         dis_sr_loss = 0
 
         #grad_discriminator loss
-        hr_grads = self.get_grad(hr_images)
+        hr_grads = self.get_grad(hr_images).detach()
         dis_grad_real = hr_grads
         dis_grad_gen = gen_grads.detach()
         dis_grad_sr = sr_grads.detach()
@@ -168,7 +168,7 @@ class SRModel(BaseModel):
 
         dis_real_grad_loss = self.adversarial_loss(dis_grad_real_outputs, True, True)
         dis_fake_grad_loss = self.adversarial_loss(dis_grad_sr_outputs, False, True)
-        dis_grad_loss = dis_real_grad_loss + dis_fake_grad_loss
+        dis_grad_loss = (dis_real_grad_loss + dis_fake_grad_loss) / 2
 
         #sr_discriminator loss
         dis_sr_real = hr_images
@@ -179,20 +179,23 @@ class SRModel(BaseModel):
 
         dis_real_sr_loss = self.adversarial_loss(dis_sr_real_outputs, True, True)
         dis_fake_sr_loss = self.adversarial_loss(dis_sr_gen_outputs, False, True)
-        dis_sr_loss = dis_real_sr_loss + dis_fake_sr_loss
+        dis_sr_loss = (dis_real_sr_loss + dis_fake_sr_loss) /2
 
 
 
         # generator adversarial loss
-        grad_sr_adv_loss = self.adversarial_loss(dis_grad_sr_outputs, True, False)*self.config.GRAD_SR_ADV_LOSS_WEIGHT
-        sr_adv_loss = self.adversarial_loss(dis_sr_gen_outputs, True, False)*self.config.SR_ADV_LOSS_WEIGHT
+        sr_grads_from_dis = self.grad_discriminator.forward(sr_grads)
+        grad_sr_adv_loss = self.adversarial_loss(sr_grads_from_dis, True, False)*self.config.GRAD_SR_ADV_LOSS_WEIGHT
+
+        sr_from_dis = self.sr_discriminator.forward(outputs)
+        sr_adv_loss = self.adversarial_loss(sr_from_dis, True, False)*self.config.SR_ADV_LOSS_WEIGHT
         gen_adv_loss = grad_sr_adv_loss + sr_adv_loss
         gen_loss = gen_loss + gen_adv_loss
 
         # generator L1 loss
-        L1_grad_gen_pix_loss = self.L1_loss(dis_grad_real, dis_grad_gen)*self.config.L1_GRAD_GEN_PIX_LOSS_WEIGHT
-        L1_grad_sr_pix_loss = self.L1_loss(dis_grad_real, dis_grad_sr)*self.config.L1_GRAD_SR_PIX_LOSS_WEIGHT
-        L1_sr_pix_loss = self.L1_loss(hr_images, dis_sr_gen)*self.config.L1_SR_PIX_LOSS_WEIGHT
+        L1_grad_gen_pix_loss = self.L1_loss(hr_grads, gen_grads)*self.config.L1_GRAD_GEN_PIX_LOSS_WEIGHT
+        L1_grad_sr_pix_loss = self.L1_loss(hr_grads, sr_grads)*self.config.L1_GRAD_SR_PIX_LOSS_WEIGHT
+        L1_sr_pix_loss = self.L1_loss(hr_images, outputs)*self.config.L1_SR_PIX_LOSS_WEIGHT
         gen_L1_loss = L1_grad_gen_pix_loss + L1_grad_sr_pix_loss + L1_sr_pix_loss
         gen_loss = gen_loss + gen_L1_loss
 
