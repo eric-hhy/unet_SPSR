@@ -133,7 +133,7 @@ class SRGenerator(BaseNet):
     def forward(self, lr_images, lr_grads):
         feature1 = self.sr_encoder1(lr_images) #size:256, channel:64
         feature2 = self.sr_encoder2(feature1) #size:128, channel:128
-        ouput = self.sr_encoder3(feature2) #size:64, channel:256
+        output = self.sr_encoder3(feature2) #size:64, channel:256
         
         output = self.sr_middle(output) #size:64, channel:256
 
