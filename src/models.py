@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from .components import SRGenerator, GradDiscriminator, SRDiscriminator
 from .dataset import Dataset
 from .loss import AdversarialLoss, ContentLoss, StyleLoss
-from .util import Get_gradient
+from .utils import Get_gradient
 
 
 class BaseModel(nn.Module):
