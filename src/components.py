@@ -104,12 +104,12 @@ class SRGenerator2(BaseNet):
             nn.MaxPool2d(2, 2)
             )
 
-        #grad_blocks = []
-        #for _ in range(2):
-        #    block = ResnetBlock(256, 2)
-        #    grad_blocks.append(block)
+        grad_blocks = []
+        for _ in range(2):
+            block = ResnetBlock(256, 2)
+            grad_blocks.append(block)
 
-        #self.grad_middle = nn.Sequential(*grad_blocks)
+        self.grad_middle = nn.Sequential(*grad_blocks)
 
         self.grad_decoder1 = nn.Sequential(
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
@@ -154,12 +154,12 @@ class SRGenerator2(BaseNet):
             nn.MaxPool2d(2, 2)
             )
 
-        #sr_blocks = []
-        #for _ in range(4):
-        #    block = ResnetBlock(256, 2)
-        #    sr_blocks.append(block)
+        sr_blocks = []
+        for _ in range(4):
+            block = ResnetBlock(256, 2)
+            sr_blocks.append(block)
 
-        #self.sr_middle = nn.Sequential(*sr_blocks)
+        self.sr_middle = nn.Sequential(*sr_blocks)
 
         self.sr_decoder1 = nn.Sequential(
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
@@ -191,7 +191,7 @@ class SRGenerator2(BaseNet):
         feature2 = self.sr_encoder2(feature1) #size:128, channel:128
         output = self.sr_encoder3(feature2) #size:64, channel:256
 
-        #output = self.sr_middle(output) #size:64, channel:256
+        output = self.sr_middle(output) #size:64, channel:256
         output = F.interpolate(output, scale_factor=2, mode='bilinear')
         feature3 = self.sr_decoder1(output) #size:128, channel:128
         feature3 = F.interpolate(feature3, scale_factor=2, mode='bilinear')
@@ -203,7 +203,7 @@ class SRGenerator2(BaseNet):
         grad = self.grad_encoder2(grad) #size:128, channel:128
         grad = self.grad_encoder3(grad) #size:64, channel:256
 
-        #grad = self.grad_middle(grad) #size:64, channel:256
+        grad = self.grad_middle(grad) #size:64, channel:256
         grad = F.interpolate(grad, scale_factor=2, mode='bilinear')
         grad = self.grad_decoder1(grad) #size:128, channel:128
         grad = F.interpolate(grad, scale_factor=2, mode='bilinear')
