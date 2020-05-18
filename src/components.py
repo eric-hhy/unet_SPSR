@@ -105,7 +105,7 @@ class SRGenerator2(BaseNet):
             )
 
         grad_blocks = []
-        for _ in range(residual_blocks):
+        for _ in range(2):
             block = ResnetBlock(256, 2)
             grad_blocks.append(block)
 
@@ -155,7 +155,7 @@ class SRGenerator2(BaseNet):
             )
 
         sr_blocks = []
-        for _ in range(residual_blocks):
+        for _ in range(4):
             block = ResnetBlock(256, 2)
             sr_blocks.append(block)
 
