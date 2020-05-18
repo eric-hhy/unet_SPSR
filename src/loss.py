@@ -106,6 +106,21 @@ class ContentLoss(nn.Module):
 
         return content_loss
 
+class SimpleContentLoss(nn.Module):
+    def __init__(self, weights=[1.0, 1.0, 1.0, 1.0, 1.0]):
+        super().__init__()
+        self.add_module('vgg', VGG19())
+        self.criterion = torch.nn.L1Loss()
+        self.weights = weights
+
+    def __call__(self, x, y):
+        # Compute features
+        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+
+        content_loss = 0.0
+        content_loss += self.criterion(x_vgg['relu5_4'], y_vgg['relu5_4'])
+
+        return content_loss
 
 
 class VGG19(torch.nn.Module):
