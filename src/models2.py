@@ -1,15 +1,14 @@
-import os
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from .components import SRGenerator, GradDiscriminator, SRDiscriminator
+from .components import SRGenerator2, GradDiscriminator, SRDiscriminator
 from .dataset import Dataset
 from .loss import AdversarialLoss, ContentLoss, StyleLoss, SimpleContentLoss
 from .utils import Get_gradient
-
+import os
 
 class BaseModel(nn.Module):
     def __init__(self, name, config):
@@ -72,14 +71,14 @@ class BaseModel(nn.Module):
             "srdiscriminator": self.sr_discriminator.state_dict()
             }, self.dis_sr_weights_path)
 
-class SRModel(BaseModel):
+class SRModel2(BaseModel):
     def __init__(self, config):
-        super().__init__("SRModel", config)
+        super().__init__("SRModel2", config)
 
         self.config = config
         # generator input: [rgb(3) + edge(1)]
         # discriminator input: (rgb(3) 
-        self.generator = SRGenerator()
+        self.generator = SRGenerator2()
         self.grad_discriminator = GradDiscriminator(in_channels = 3, use_sigmoid = config.GAN_LOSS != "hinge")
         self.sr_discriminator = SRDiscriminator(in_channels = 3, use_sigmoid = config.GAN_LOSS != "hinge")
 

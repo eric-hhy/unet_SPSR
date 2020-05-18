@@ -82,6 +82,142 @@ class UNet(BaseNet):
 
         return output
 
+class SRGenerator2(BaseNet):
+    def __init__(self, scale = 4, residual_blocks = 8):
+        super().__init__()
+        
+        self.grad_encoder1 = nn.Sequential(
+            nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.grad_encoder2 = nn.Sequential(
+            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True),
+            nn.MaxPool2d(2, 2)
+            )
+        
+        self.grad_encoder3 = nn.Sequential(
+            nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 1),
+            nn.ReLU(True),
+            nn.MaxPool2d(2, 2)
+            )
+
+        grad_blocks = []
+        for _ in range(residual_blocks):
+            block = ResnetBlock(256, 2)
+            grad_blocks.append(block)
+
+        self.grad_middle = nn.Sequential(*grad_blocks)
+
+        self.grad_decoder1 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.grad_decoder2 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.grad_decoder3 = nn.Sequential(
+            nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 64, out_channels = 32, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.grad_decoder4 = nn.Conv2d(in_channels = 32, out_channels = 3, kernel_size = 1, padding = 0)
+
+        #=============================================================
+
+        self.sr_encoder1 = nn.Sequential(
+            nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.sr_encoder2 = nn.Sequential(
+            nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True),
+            nn.MaxPool2d(2, 2)
+            )
+
+        self.sr_encoder3 = nn.Sequential(
+            nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 256, out_channels = 256, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True),
+            nn.MaxPool2d(2, 2)
+            )
+
+        sr_blocks = []
+        for _ in range(residual_blocks):
+            block = ResnetBlock(256, 2)
+            sr_blocks.append(block)
+
+        self.sr_middle = nn.Sequential(*sr_blocks)
+
+        self.sr_decoder1 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.sr_decoder2 = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.sr_decoder3 = nn.Sequential(
+            nn.Conv2d(in_channels = 64, out_channels = 32, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 32, out_channels = 32, kernel_size = 3, stride = 1, padding = 1),
+            nn.ReLU(True)
+            )
+
+        self.sr_decoder4 = nn.Sequential(
+            nn.Conv2d(in_channels = 64, out_channels = 32, kernel_size = 3, stride = 1, padding = 1),
+            nn.Conv2d(in_channels = 32, out_channels = 3, kernel_size = 3, stride = 1, padding = 1),
+            )
+
+        self.init_weights()
+
+    def forward(self, lr_images, lr_grads):
+        feature1 = self.sr_encoder1(lr_images) #size:256, channel:64
+        feature2 = self.sr_encoder2(feature1) #size:128, channel:128
+        output = self.sr_encoder3(feature2) #size:64, channel:256
+        
+        output = self.sr_middle(output) #size:64, channel:256
+
+        feature3 = self.sr_decoder1(output) #size:128, channel:128
+        feature4 = self.sr_decoder2(feature3) #size:256, channel:64
+        output = self.sr_decoder3(feature4) #size:256, channel:32
+
+        grad = self.grad_encoder1(lr_grads) #size:256, channel:64
+        grad = torch.cat((grad, feature1), dim=1) #channel:128
+        grad = self.grad_encoder2(grad) #size:128, channel:128
+        grad = self.grad_encoder3(grad) #size:64, channel:256
+
+        grad = self.grad_middle(grad) #size:64, channel:256
+
+        grad = self.grad_decoder1(grad) #size:128, channel:128
+        grad = self.grad_decoder2(grad) #size:256, channel:64
+        grad = torch.cat((grad, feature4), dim=1) #channel:128
+        grad_to_sr = self.grad_decoder3(grad) #size:256, channel:32
+        final_grad = self.grad_decoder4(grad_to_sr) #size:256, channel:3
+        
+        output = torch.cat((output, grad_to_sr), dim=1) #channel = 64
+        output = self.sr_decoder4(output) #channel = 3
+        output = torch.sigmoid(output)
+        
+        return output, final_grad
+
 class SRGenerator(BaseNet):
     def __init__(self, scale = 4, residual_blocks = 8):
         super().__init__()
