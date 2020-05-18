@@ -191,7 +191,7 @@ class SRGenerator2(BaseNet):
         feature2 = self.sr_encoder2(feature1) #size:128, channel:128
         output = self.sr_encoder3(feature2) #size:64, channel:256
 
-        output = self.sr_middle(output) #size:64, channel:256
+        #output = self.sr_middle(output) #size:64, channel:256
         output = F.interpolate(output, scale_factor=2, mode='bilinear')
         feature3 = self.sr_decoder1(output) #size:128, channel:128
         feature3 = F.interpolate(feature3, scale_factor=2, mode='bilinear')
@@ -203,7 +203,7 @@ class SRGenerator2(BaseNet):
         grad = self.grad_encoder2(grad) #size:128, channel:128
         grad = self.grad_encoder3(grad) #size:64, channel:256
 
-        grad = self.grad_middle(grad) #size:64, channel:256
+        #grad = self.grad_middle(grad) #size:64, channel:256
         grad = F.interpolate(grad, scale_factor=2, mode='bilinear')
         grad = self.grad_decoder1(grad) #size:128, channel:128
         grad = F.interpolate(grad, scale_factor=2, mode='bilinear')
