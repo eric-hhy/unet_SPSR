@@ -88,7 +88,7 @@ class SRModel2(BaseModel):
             self.sr_discriminator = nn.DataParallel(self.sr_discriminator, config.GPU)
 
         self.L1_loss = nn.L1Loss()
-        self.content_loss = ContentLoss()
+        self.content_loss = SimpleContentLoss()
         self.style_loss = StyleLoss()
         self.adversarial_loss = AdversarialLoss(type = config.GAN_LOSS)
         self.get_grad = Get_gradient()
@@ -204,10 +204,11 @@ class SRModel2(BaseModel):
         gen_content_loss = gen_content_loss * self.config.CONTENT_LOSS_WEIGHT
 
         # generator style loss
-        gen_style_loss = self.style_loss(outputs, hr_images)
-        gen_style_loss = gen_style_loss * self.config.STYLE_LOSS_WEIGHT
+        #gen_style_loss = self.style_loss(outputs, hr_images)
+        #gen_style_loss = gen_style_loss * self.config.STYLE_LOSS_WEIGHT
 
-        gen_perceptual_loss = gen_content_loss + gen_style_loss
+        gen_perceptual_loss = gen_content_loss
+        #+ gen_style_loss
 
         gen_loss = gen_loss + gen_perceptual_loss
 

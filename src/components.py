@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class BaseNet(nn.Module):
     def __init__(self):
@@ -111,14 +112,14 @@ class SRGenerator2(BaseNet):
         self.grad_middle = nn.Sequential(*grad_blocks)
 
         self.grad_decoder1 = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
             )
 
         self.grad_decoder2 = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
@@ -162,14 +163,14 @@ class SRGenerator2(BaseNet):
         self.sr_middle = nn.Sequential(*sr_blocks)
 
         self.sr_decoder1 = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
             )
 
         self.sr_decoder2 = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
@@ -199,7 +200,6 @@ class SRGenerator2(BaseNet):
         feature4 = self.sr_decoder2(feature3) #size:256, channel:64
         output = self.sr_decoder3(feature4) #size:256, channel:32
         
-
         grad = self.grad_encoder1(lr_grads) #size:256, channel:64
         grad = torch.cat((grad, feature1), dim=1) #channel:128
         grad = self.grad_encoder2(grad) #size:128, channel:128
