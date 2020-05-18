@@ -98,7 +98,7 @@ class SRGenerator2(BaseNet):
             )
         
         self.grad_encoder3 = nn.Sequential(
-            nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 1),
+            nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True),
             nn.MaxPool2d(2, 2)
             )
@@ -192,28 +192,18 @@ class SRGenerator2(BaseNet):
         feature1 = self.sr_encoder1(lr_images) #size:256, channel:64
         feature2 = self.sr_encoder2(feature1) #size:128, channel:128
         output = self.sr_encoder3(feature2) #size:64, channel:256
-        print("after s_enc_3")
-        print(output.shape)
 
         output = self.sr_middle(output) #size:64, channel:256
 
         feature3 = self.sr_decoder1(output) #size:128, channel:128
-        print("feature3")
-        print(feature3.shape)
         feature4 = self.sr_decoder2(feature3) #size:256, channel:64
-        print("feature4")
-        print(feature4.shape)
         output = self.sr_decoder3(feature4) #size:256, channel:32
         
 
         grad = self.grad_encoder1(lr_grads) #size:256, channel:64
         grad = torch.cat((grad, feature1), dim=1) #channel:128
         grad = self.grad_encoder2(grad) #size:128, channel:128
-        print("after g_enc_2")
-        print(grad.shape)
         grad = self.grad_encoder3(grad) #size:64, channel:256
-        print("after g_enc_3")
-        print(grad.shape)
 
         grad = self.grad_middle(grad) #size:64, channel:256
 
