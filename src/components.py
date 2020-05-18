@@ -112,14 +112,12 @@ class SRGenerator2(BaseNet):
         self.grad_middle = nn.Sequential(*grad_blocks)
 
         self.grad_decoder1 = nn.Sequential(
-            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
             )
 
         self.grad_decoder2 = nn.Sequential(
-            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
@@ -132,6 +130,7 @@ class SRGenerator2(BaseNet):
             )
 
         self.grad_decoder4 = nn.Conv2d(in_channels = 32, out_channels = 3, kernel_size = 1, padding = 0)
+
 
         #=============================================================
 
@@ -163,14 +162,12 @@ class SRGenerator2(BaseNet):
         self.sr_middle = nn.Sequential(*sr_blocks)
 
         self.sr_decoder1 = nn.Sequential(
-            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 128, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
             )
 
         self.sr_decoder2 = nn.Sequential(
-            F.interpolate(scale_factor=2, mode='bilinear'),
             nn.Conv2d(in_channels = 128, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.Conv2d(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 1),
             nn.ReLU(True)
@@ -195,8 +192,9 @@ class SRGenerator2(BaseNet):
         output = self.sr_encoder3(feature2) #size:64, channel:256
 
         output = self.sr_middle(output) #size:64, channel:256
-
+        output = F.interpolate(output, scale_factor=2, mode='bilinear')
         feature3 = self.sr_decoder1(output) #size:128, channel:128
+        feature3 = F.interpolate(feature3, scale_factor=2, mode='bilinear')
         feature4 = self.sr_decoder2(feature3) #size:256, channel:64
         output = self.sr_decoder3(feature4) #size:256, channel:32
         
@@ -206,12 +204,14 @@ class SRGenerator2(BaseNet):
         grad = self.grad_encoder3(grad) #size:64, channel:256
 
         grad = self.grad_middle(grad) #size:64, channel:256
-
+        grad = F.interpolate(grad, scale_factor=2, mode='bilinear')
         grad = self.grad_decoder1(grad) #size:128, channel:128
+        grad = F.interpolate(grad, scale_factor=2, mode='bilinear')
         grad = self.grad_decoder2(grad) #size:256, channel:64
         grad = torch.cat((grad, feature4), dim=1) #channel:128
         grad_to_sr = self.grad_decoder3(grad) #size:256, channel:32
         final_grad = self.grad_decoder4(grad_to_sr) #size:256, channel:3
+        final_grad = torch.sigmoid(final_grad)
         
         output = torch.cat((output, grad_to_sr), dim=1) #channel = 64
         output = self.sr_decoder4(output) #channel = 3
