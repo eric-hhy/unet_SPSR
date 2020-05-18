@@ -208,9 +208,9 @@ class SRModel(BaseModel):
         #gen_style_loss = self.style_loss(outputs, hr_images)
         #gen_style_loss = gen_style_loss * self.config.STYLE_LOSS_WEIGHT
 
-        #gen_perceptual_loss = gen_content_loss + gen_style_loss
+        gen_perceptual_loss = gen_content_loss
 
-        gen_loss = gen_loss + gen_content_loss
+        gen_loss = gen_loss + gen_perceptual_loss
 
         # create logs
         logs = [
