@@ -104,12 +104,12 @@ class SRGenerator2(BaseNet):
             nn.MaxPool2d(2, 2)
             )
 
-        grad_blocks = []
-        for _ in range(2):
-            block = ResnetBlock(256, 2)
-            grad_blocks.append(block)
+        #grad_blocks = []
+        #for _ in range(2):
+        #    block = ResnetBlock(256, 2)
+        #    grad_blocks.append(block)
 
-        self.grad_middle = nn.Sequential(*grad_blocks)
+        #self.grad_middle = nn.Sequential(*grad_blocks)
 
         self.grad_decoder1 = nn.Sequential(
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
@@ -154,12 +154,12 @@ class SRGenerator2(BaseNet):
             nn.MaxPool2d(2, 2)
             )
 
-        sr_blocks = []
-        for _ in range(4):
-            block = ResnetBlock(256, 2)
-            sr_blocks.append(block)
+        #sr_blocks = []
+        #for _ in range(4):
+        #    block = ResnetBlock(256, 2)
+        #    sr_blocks.append(block)
 
-        self.sr_middle = nn.Sequential(*sr_blocks)
+        #self.sr_middle = nn.Sequential(*sr_blocks)
 
         self.sr_decoder1 = nn.Sequential(
             nn.Conv2d(in_channels = 256, out_channels = 128, kernel_size = 3, stride = 1, padding = 1),
