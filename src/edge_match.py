@@ -179,7 +179,7 @@ class EdgeMatch():
             name = self.test_dataset.load_name(index)
             lr_images, hr_images = self.cuda(*items)
             index += 1
-            print(index, name)
+
             outputs, sr_grads, gen_grads = self.sr_model.forward(lr_images)
 
             output = self.postprocess(outputs)[0]
