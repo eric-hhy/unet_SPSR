@@ -61,6 +61,10 @@ class Dataset(torch.utils.data.Dataset):
     #def load_edge(self, img):
         #return canny(rgb2gray(img), sigma=self.sigma).astype(np.float)
 
+    def load_name(self, index):
+        name = self.ori_imgs[index]
+        return os.path.basename(name)
+
     def create_iterator(self, batch_size):
         while True:
             sample_loader = DataLoader(
