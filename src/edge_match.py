@@ -187,6 +187,7 @@ class EdgeMatch():
             print(index, name)
 
             imsave(output, path)
+            torch.cuda.empty_cache()
 
         print('\nEnd test....')
 
