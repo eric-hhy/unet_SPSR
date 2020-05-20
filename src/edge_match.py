@@ -175,20 +175,19 @@ class EdgeMatch():
         )
 
         index = 0
-        for items in test_loader:
-            name = self.test_dataset.load_name(index)
-            lr_images, hr_images = self.cuda(*items)
-            index += 1
+        with torch.no_grad():
+            for items in test_loader:
+                name = self.test_dataset.load_name(index)
+                lr_images, hr_images = self.cuda(*items)
+                index += 1
             
-            print(index, name)
-            print(lr_images.shape)
-            outputs, sr_grads, gen_grads = self.sr_model.forward(lr_images)
+                print(index, name)
+                outputs, sr_grads, gen_grads = self.sr_model.forward(lr_images)
 
-            output = self.postprocess(outputs)[0]
-            path = os.path.join(self.results_path, name)
+                output = self.postprocess(outputs)[0]
+                path = os.path.join(self.results_path, name)
             
-            imsave(output, path)
-            torch.cuda.empty_cache()
+                imsave(output, path)
 
         print('\nEnd test....')
 

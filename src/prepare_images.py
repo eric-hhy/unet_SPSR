@@ -25,10 +25,10 @@ class Prepare_img():
             hr_img = img.crop((left, top, right, bottom))
         else:
             # For saving memory, if width or height > 1024, crop it to 1024
-            if img.width > 900:
-                img = img.crop((0, 0, 900, img.height))
-            if img.height > 600:
-                img = img.crop((0, 0, img.width, 600))
+            #if img.width > 900:
+            #    img = img.crop((0, 0, 900, img.height))
+            #if img.height > 600:
+            #    img = img.crop((0, 0, img.width, 600))
             
             # Take the largest possible center-crop of it such that its dimensions are perfectly divisible by the scaling factor
             x_remainder = img.width % self.scale
