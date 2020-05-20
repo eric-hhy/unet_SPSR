@@ -25,9 +25,9 @@ class Prepare_img():
             hr_img = img.crop((left, top, right, bottom))
         else:
             # For saving memory, if width or height > 1024, crop it to 1024
-            if img.width > 1024:
+            if img.width > 900:
                 img = img.crop((0, 0, 1024, img.height))
-            if img.height > 1024:
+            if img.height > 600:
                 top = 0
                 bottom = 1024
                 img = img.crop((0, 0, img.width, 1024))
