@@ -181,12 +181,14 @@ class EdgeMatch():
             index += 1
             
             print(index, name)
+            print(lr_images.shape)
             outputs, sr_grads, gen_grads = self.sr_model.forward(lr_images)
 
             output = self.postprocess(outputs)[0]
             path = os.path.join(self.results_path, name)
             
             imsave(output, path)
+            torch.cuda.empty_cache()
 
         print('\nEnd test....')
 
